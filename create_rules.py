@@ -302,7 +302,7 @@ def send_commit(username: str, server: str) -> int:
 
 
 # Example: create_rules.py -u [user] -S [size] -s [servers] -c [context] -n [network]
-# Example: create_rules.py -u sysadmin1 -s hosts.txt -c sample -n networks.json -S 3
+# Example: create_rules.py -u sysadmin1 -s host.txt -c sample -n sub.json -S 3
 # example file (trust_subnet)
 # $ cat hosts.txt
 # 172.17.135.59
