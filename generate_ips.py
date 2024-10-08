@@ -90,7 +90,7 @@ def save_to_file(filename, data) -> None:
 
 
 # Example: generate_ips.py -s [size] -f [file] -t [trust_subnet]
-# Example: generate_ips.py -s 3 -f test.json -t sub.txt
+# Example: generate_ips.py -s 3 -f sub.json -t sub.txt
 # example file (trust_subnet)
 # $ cat sub.txt
 # 10.0.0.0/24
