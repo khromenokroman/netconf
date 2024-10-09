@@ -159,7 +159,7 @@ def get_networks_from_file(file_path: str):
         sys.exit(-1)
 
 
-def create_rules(context: str, data: dict, server: str, username: str, size: int):
+def create_rules(context: str, data: dict, server: str, username: str, size: int, split: str):
     """
     This function is used to create netconf access rules for a context and send it to the server.
 
@@ -173,27 +173,45 @@ def create_rules(context: str, data: dict, server: str, username: str, size: int
     If the response indicates an error (or the response is empty), the function will return -1 and print an error message.
     If the 'check_response' function confirms no errors in the response, the function will return 0.
     """
-    if len(data['allowed']) < 1 or len(data['prohibited']) < 1 or len(data['trusted']) < 1:
-        print(f'Error: Length of allowed, prohibited, or trusted is less than 1')
-        return -1
+    if (split == 'yes'):
+        size = 3
 
-    if size != len(data['allowed']):
-        print(f'Error: Capacity subnets not equal count acl')
-        return -1
+    if split == 'no':
+        if len(data['allowed']) < 1 or len(data['prohibited']) < 1 or len(data['trusted']) < 1:
+            print(f'Error: Length of allowed, prohibited, or trusted is less than 1')
+            return -1
+
+        if size != len(data['allowed']):
+            print(f'Error: Capacity subnets not equal count acl')
+            return -1
 
     request_group_allowed = ''
+    if split == 'yes':
+        request_group_allowed += '<address-group><group-name>allowed</group-name><address-types>'
     count = 1
     for ip in data['allowed']:
         subnet_allowed = f'<ip-subnets nc:operation="replace">{ip}</ip-subnets>'
-        request_group_allowed += f'<address-group><group-name>allowed-{count}</group-name><address-types>{subnet_allowed}</address-types></address-group>'
+        if split == 'no':
+            request_group_allowed += f'<address-group><group-name>allowed-{count}</group-name><address-types>{subnet_allowed}</address-types></address-group>'
+        else:
+            request_group_allowed += f'{subnet_allowed}'
         count += 1
+    if split == 'yes':
+        request_group_allowed += '</address-types></address-group>'
 
     request_group_prohibited = ''
+    if split == 'yes':
+        request_group_prohibited += '<address-group><group-name>prohibited</group-name><address-types>'
     count = 1
     for ip in data['prohibited']:
         subnet_prohibited = f'<ip-subnets nc:operation="replace">{ip}</ip-subnets>'
-        request_group_prohibited += f'<address-group><group-name>prohibited-{count}</group-name><address-types>{subnet_prohibited}</address-types></address-group>'
+        if split == 'no':
+            request_group_prohibited += f'<address-group><group-name>prohibited-{count}</group-name><address-types>{subnet_prohibited}</address-types></address-group>'
+        else:
+            request_group_prohibited += f'{subnet_prohibited}'
         count += 1
+    if split == 'yes':
+        request_group_prohibited += '</address-types></address-group>'
 
     subnet_trusted = ''
     for ip in data['trusted']:
@@ -201,41 +219,57 @@ def create_rules(context: str, data: dict, server: str, username: str, size: int
     request_group_trusted = f'<address-group><group-name>trusted</group-name><address-types>{subnet_trusted}</address-types></address-group>'
 
     acls_allowed = ''
-    count = 1
-    for i in range(1, size + 1):
-        acls_allowed += (f'<acl-entry><sequence-id>{i}</sequence-id><actions><config><forwarding-action '
-                         'nc:operation="replace">accept</forwarding-action></config></actions><src-address '
-                         f'nc:operation="replace">allowed-{count}</src-address></acl-entry>')
-        count += 1
-
     acls_prohibited = ''
-    count = 1
-    for i in range(size + 1, size * 2 + 1):
-        acls_prohibited += (f'<acl-entry><sequence-id>{i}</sequence-id><actions><config><forwarding-action '
-                            'nc:operation="replace">drop</forwarding-action></config></actions><src-address '
-                            f'nc:operation="replace">prohibited-{count}</src-address></acl-entry>')
-        count += 1
+    if split=='no':
+        count = 1
+        for i in range(1, size + 1):
+            acls_allowed += (f'<acl-entry><sequence-id>{i}</sequence-id><actions><config><forwarding-action '
+                             'nc:operation="replace">accept</forwarding-action></config></actions><src-address '
+                             f'nc:operation="replace">allowed-{count}</src-address></acl-entry>')
+            count += 1
 
+        count = 1
+        for i in range(size + 1, size * 2 + 1):
+            acls_prohibited += (f'<acl-entry><sequence-id>{i}</sequence-id><actions><config><forwarding-action '
+                                'nc:operation="replace">drop</forwarding-action></config></actions><src-address '
+                                f'nc:operation="replace">prohibited-{count}</src-address></acl-entry>')
+            count += 1
+    else:
+        acls_allowed = (f'<acl-entry><sequence-id>1</sequence-id><actions><config><forwarding-action '
+                         'nc:operation="replace">accept</forwarding-action></config></actions><src-address '
+                         f'nc:operation="replace">allowed</src-address></acl-entry>')
+        acls_prohibited = (f'<acl-entry><sequence-id>2</sequence-id><actions><config><forwarding-action '
+                            'nc:operation="replace">drop</forwarding-action></config></actions><src-address '
+                            f'nc:operation="replace">prohibited</src-address></acl-entry>')
     acls_trusted = (
         f'<acl-entry><sequence-id>{size * 3 + 1}</sequence-id><actions><config><forwarding-action '
         'nc:operation="replace">accept</forwarding-action></config></actions><src-address '
         'nc:operation="replace">trusted</src-address></acl-entry>')
 
     sec_allowed = ''
-    count = 1
-    for i in range(1, size + 1):
-        sec_allowed += (f'<sec-entry><sequence-id>{i}</sequence-id><enabled>true</enabled><actions><config><forwarding'
-                        '-action>accept</forwarding-action></config></actions><src-address '
-                        f'nc:operation="replace">allowed-{count}</src-address></sec-entry>')
-        count += 1
-
     sec_prohibited = ''
-    count = 1
-    for i in range(size + 1, size * 2 + 1):
-        sec_prohibited += (f'<sec-entry><sequence-id>{i}</sequence-id><enabled>true</enabled><actions><config'
+    if split == 'no':
+        count = 1
+        for i in range(1, size + 1):
+            sec_allowed += (f'<sec-entry><sequence-id>{i}</sequence-id><enabled>true</enabled><actions><config><forwarding'
+                            '-action>accept</forwarding-action></config></actions><src-address '
+                            f'nc:operation="replace">allowed-{count}</src-address></sec-entry>')
+            count += 1
+
+
+        count = 1
+        for i in range(size + 1, size * 2 + 1):
+            sec_prohibited += (f'<sec-entry><sequence-id>{i}</sequence-id><enabled>true</enabled><actions><config'
+                               f'><forwarding-action>drop</forwarding-action></config></actions><src-address '
+                               f'nc:operation="replace">prohibited-{count}</src-address></sec-entry>')
+            count += 1
+    else:
+        sec_allowed = (f'<sec-entry><sequence-id>1</sequence-id><enabled>true</enabled><actions><config><forwarding'
+                        '-action>accept</forwarding-action></config></actions><src-address '
+                        f'nc:operation="replace">allowed</src-address></sec-entry>')
+        sec_prohibited = (f'<sec-entry><sequence-id>2</sequence-id><enabled>true</enabled><actions><config'
                            f'><forwarding-action>drop</forwarding-action></config></actions><src-address '
-                           f'nc:operation="replace">prohibited-{count}</src-address></sec-entry>')
-        count += 1
+                           f'nc:operation="replace">prohibited</src-address></sec-entry>')
 
     sec_trusted = (f'<sec-entry><sequence-id>{size * 3 + 1}</sequence-id><enabled>true</enabled><actions'
                    f'><config><forwarding-action>accept</forwarding-action></config></actions><src-address '
@@ -301,8 +335,8 @@ def send_commit(username: str, server: str) -> int:
         return -1
 
 
-# Example: create_rules.py -u [user] -S [size] -s [servers] -c [context] -n [network]
-# Example: create_rules.py -u sysadmin1 -s host.txt -c sample -n sub.json -S 3
+# Example: create_rules.py -u [user] -S [size] -s [servers] -c [context] -n [network] -d [split]
+# Example: create_rules.py -u sysadmin1 -s host.txt -c sample -n sub.json -S 3 -d yes
 # example file (trust_subnet)
 # $ cat hosts.txt
 # 172.17.135.59
@@ -321,8 +355,13 @@ if __name__ == "__main__":
                         help='The name of the context that we are editing. This argument is required.')
     parser.add_argument('-n', '--network', type=str, required=True,
                         help='Added network in acl. This argument is required.')
-
+    parser.add_argument('-d', '--split', type=str, required=True,
+                        help='One rule - one subnet. This argument is required.')
     args = parser.parse_args()
+
+    if args.split not in ['yes','no']:
+        print(f'The parameter("-d", "--split") is incorrect, it must be "yes" or "no"')
+        sys.exit(-1)
 
     servers = get_servers_from_file(args.servers)
     if len(servers) < 1:
@@ -343,7 +382,7 @@ if __name__ == "__main__":
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = [executor.submit(create_rules, args.context, get_networks_from_file(args.network), server, args.user,
-                                   args.size) for server in servers]
+                                   args.size, args.split) for server in servers]
         results = [f.result() for f in futures]
         if any(result == -1 for result in results):
             print(f"Error: Create rules")
